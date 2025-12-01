@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: '/reflex-pro/',  // 这一行必须是return对象的第一个属性
+      base: '/reflex-pro1.0/',  // 这一行必须是return对象的第一个属性
       server: {
         port: 3000,
         host: '0.0.0.0',

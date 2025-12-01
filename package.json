@@ -1,9 +1,9 @@
 {
-  "name": "reflex-pro---反应速度测试",
+  "name": "reflex-pro-reaction-speed-test",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://x1322811-dev.github.io/reflex-pro/",
+  "homepage": "https://x1322811-dev.github.io/reflex-pro1.0/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
