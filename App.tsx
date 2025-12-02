@@ -100,7 +100,7 @@ const App: React.FC = () => {
     const best = Math.min(...times);
 
     return (
-      <div className="min-h-[100dvh] bg-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-slate-950 flex items-center justify-center p-4 overflow-y-auto">
         <div className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl flex flex-col">
           <div className="text-center mb-6">
             <Trophy className="w-12 h-12 md:w-16 md:h-16 text-yellow-500 mx-auto mb-3" />
@@ -124,12 +124,12 @@ const App: React.FC = () => {
                 <Loader2 className="animate-spin w-5 h-5" /> 分析中...
               </div>
             ) : feedback ? (
-              <div className="animate-fade-in">
+              <div className="animate-fade-in mb-0">
                 <div className="flex items-center gap-2 mb-2">
                    <span className="text-purple-400 text-xs md:text-sm font-bold uppercase tracking-wider bg-purple-400/10 px-2 py-1 rounded">段位</span>
                    <span className="text-xl md:text-2xl font-bold text-white">{feedback.rank}</span>
                 </div>
-                <p className="text-slate-300 italic text-base md:text-lg mb-4 leading-relaxed">"{feedback.comment}"</p>
+                <p className="text-slate-300 italic text-base md:text-lg leading-relaxed">"{feedback.comment}"</p>
               </div>
             ) : null}
           </div>
