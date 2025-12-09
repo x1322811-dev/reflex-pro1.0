@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GameState, AiFeedback } from './types';
+import { GameState, AiFeedback, IsLoginResult, UserLoginState, RankingResponse } from './types';
 import { GameBlock } from './components/GameBlock';
 import { StatsChart } from './components/StatsChart';
 import { analyzePerformance } from './services/geminiService';
-import { Loader2, RotateCw, Trophy } from 'lucide-react';
+import { isLogin, login, getLoginType } from './services/tencentLoginService';
+import { submitScoreAndGetRanking, saveBestScore, getBestScore } from './services/rankingService';
+import { Loader2, RotateCw, Trophy, User, LogIn, Users, Medal, RefreshCw } from 'lucide-react';
 
 const MAX_ROUNDS = 5;
 
@@ -14,6 +16,19 @@ const App: React.FC = () => {
   const [startTime, setStartTime] = useState(0);
   const [feedback, setFeedback] = useState<AiFeedback | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  
+  // 登录状态管理
+  const [loginState, setLoginState] = useState<UserLoginState>({
+    isLoggedIn: false,
+    loginType: undefined,
+    userInfo: undefined
+  });
+  const [checkingLogin, setCheckingLogin] = useState(true);
+  
+  // 排行榜状态管理
+  const [ranking, setRanking] = useState<RankingResponse | null>(null);
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [bestScore, setBestScore] = useState<number | null>(null);
   
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -37,6 +52,7 @@ const App: React.FC = () => {
       setTimes([]);
       setRound(1);
       setFeedback(null);
+      setRanking(null);
       startRound();
     } 
     else if (gameState === GameState.WAITING) {
@@ -58,6 +74,10 @@ const App: React.FC = () => {
       if (newTimes.length >= MAX_ROUNDS) {
         setGameState(GameState.FINISHED);
         generateFeedback(newTimes);
+        // 保存历史最好成绩
+        const bestTime = Math.min(...newTimes);
+        saveBestScore(bestTime);
+        setBestScore(bestTime);
       } else {
         setGameState(GameState.RESULT);
         setRound(r => r + 1);
@@ -82,6 +102,85 @@ const App: React.FC = () => {
     setFeedback(null);
   };
 
+  // 应用加载时检查登录状态
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        setCheckingLogin(true);
+        const result: IsLoginResult = await isLogin();
+        
+        if (result.hasLogin) {
+          const loginType = await getLoginType();
+          setLoginState({
+            isLoggedIn: true,
+            loginType,
+            userInfo: undefined
+          });
+        }
+      } catch (error) {
+        console.error('检查登录状态失败:', error);
+      } finally {
+        setCheckingLogin(false);
+      }
+    };
+    
+    checkLoginStatus();
+    
+    // 获取历史最好成绩
+    const savedBestScore = getBestScore();
+    setBestScore(savedBestScore);
+  }, []);
+  
+  // 加载排行榜数据
+  const loadRanking = async () => {
+    if (!loginState.isLoggedIn) return;
+    
+    try {
+      setLoadingRanking(true);
+      const bestTime = Math.min(...times);
+      const rankingData = await submitScoreAndGetRanking(bestTime, 10);
+      setRanking(rankingData);
+    } catch (error) {
+      console.error('加载排行榜失败:', error);
+    } finally {
+      setLoadingRanking(false);
+    }
+  };
+  
+  // 处理登录
+  const handleLogin = async () => {
+    try {
+      console.log('开始登录流程');
+      
+      // 设置登录参数
+      const loginOptions = {
+        type: 'all',
+        from: 'reflex-pro',
+        headerInfo: {
+          title: 'Reflex Pro',
+          desc: '登录后保存您的反应速度测试记录'
+        },
+        guideWord: '登录后可查看历史成绩和排行榜'
+      };
+      
+      const result = await login(loginOptions);
+      
+      if (result.isLogin) {
+        const loginType = await getLoginType();
+        setLoginState({
+          isLoggedIn: true,
+          loginType,
+          userInfo: result.userInfo
+        });
+        console.log('登录成功');
+      } else {
+        console.log('登录失败或用户取消登录');
+      }
+    } catch (error) {
+      console.error('登录过程发生错误:', error);
+    }
+  };
+  
   // Keyboard support (Spacebar)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -105,6 +204,24 @@ const App: React.FC = () => {
           <div className="text-center mb-6">
             <Trophy className="w-12 h-12 md:w-16 md:h-16 text-yellow-500 mx-auto mb-3" />
             <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">测试结果</h1>
+            
+            {/* 用户信息区域 */}
+            <div className="flex justify-center items-center gap-2 mt-2 mb-4">
+              {loginState.isLoggedIn ? (
+                <div className="flex items-center gap-2 text-sm text-blue-300">
+                  <User className="w-4 h-4" />
+                  <span>已登录: {loginState.loginType?.toUpperCase()}</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleLogin}
+                  className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>登录保存成绩</span>
+                </button>
+              )}
+            </div>
             
             <div className="flex justify-center gap-4 md:gap-8 mt-6">
                <div className="text-center bg-slate-800/50 p-3 rounded-xl min-w-[110px] md:min-w-[140px] md:bg-transparent md:p-0">
@@ -135,6 +252,89 @@ const App: React.FC = () => {
           </div>
 
           <StatsChart data={times} />
+          
+          {/* 历史最好成绩 */}
+          {bestScore !== null && (
+            <div className="mt-6 bg-slate-800/50 rounded-xl p-5 border border-white/5">
+              <div className="flex items-center gap-2 mb-3">
+                <Medal className="w-5 h-5 text-yellow-500" />
+                <span className="text-xl font-bold text-white">历史最好成绩</span>
+              </div>
+              <div className="text-3xl font-mono font-bold text-blue-400">{bestScore}<span className="text-lg text-blue-500/70 ml-1">ms</span></div>
+            </div>
+          )}
+          
+          {/* 排行榜区域 */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-500" />
+                <h2 className="text-xl font-bold text-white">排行榜</h2>
+              </div>
+              {loginState.isLoggedIn ? (
+                <button
+                  onClick={loadRanking}
+                  disabled={loadingRanking}
+                  className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
+                >
+                  {loadingRanking ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span>{loadingRanking ? '加载中...' : '刷新'}</span>
+                </button>
+              ) : (
+                <div className="text-sm text-slate-400">
+                  登录查看排行榜
+                </div>
+              )}
+            </div>
+            
+            {loginState.isLoggedIn ? (
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-white/5 max-h-[300px] overflow-y-auto">
+                {loadingRanking ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                  </div>
+                ) : ranking ? (
+                  <div className="space-y-2">
+                    {ranking.data.ranking_board.map((item, index) => (
+                      <div key={index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
+                        <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-white ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-700' : 'bg-slate-600'}`}>
+                          {item.ranking.rank}
+                        </div>
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-white/20">
+                          <img src={item.user_info.head_url} alt={item.user_info.nick} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-grow">
+                          <div className="text-white font-medium">{item.user_info.nick}</div>
+                          <div className="text-sm text-slate-400">反应时间: {(100000 - item.ranking.score).toFixed(0)}ms</div>
+                        </div>
+                        <div className="text-blue-400 font-bold">#{item.ranking.rank}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-400">
+                    <p className="mb-2">点击刷新按钮查看排行榜</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-slate-800/50 rounded-xl p-8 border border-white/5 text-center">
+                <Users className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                <p className="text-slate-400 mb-4">登录后即可查看排行榜</p>
+                <button
+                  onClick={handleLogin}
+                  className="flex items-center justify-center gap-2 mx-auto text-sm bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-5 rounded-xl transition-all"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>立即登录</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           <button 
             onClick={resetGame}
@@ -155,6 +355,9 @@ const App: React.FC = () => {
         lastTime={times[times.length - 1]}
         currentRound={round}
         totalRounds={MAX_ROUNDS}
+        onLogin={handleLogin}
+        isLoggedIn={loginState.isLoggedIn}
+        loginType={loginState.loginType}
       />
       
       {/* Floating Indicators for non-idle states */}

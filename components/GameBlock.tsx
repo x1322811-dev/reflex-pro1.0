@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameState } from '../types';
-import { RotateCcw, Zap, MousePointer2 } from 'lucide-react';
+import { RotateCcw, Zap, MousePointer2, LogIn, User } from 'lucide-react';
 
 interface GameBlockProps {
   gameState: GameState;
@@ -8,6 +8,9 @@ interface GameBlockProps {
   lastTime?: number;
   currentRound: number;
   totalRounds: number;
+  onLogin?: () => void; // 登录回调函数
+  isLoggedIn?: boolean; // 是否已登录
+  loginType?: string; // 登录类型
 }
 
 export const GameBlock: React.FC<GameBlockProps> = ({ 
@@ -15,7 +18,10 @@ export const GameBlock: React.FC<GameBlockProps> = ({
   onClick, 
   lastTime, 
   currentRound, 
-  totalRounds 
+  totalRounds,
+  onLogin,
+  isLoggedIn,
+  loginType
 }) => {
   
   const getContent = () => {
@@ -28,8 +34,30 @@ export const GameBlock: React.FC<GameBlockProps> = ({
             <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-sm md:max-w-md mx-auto leading-relaxed">
               测试你的反应速度 屏幕变绿时立即点击
             </p>
-            <div className="flex items-center justify-center space-x-3 text-blue-200 bg-white/10 py-3 px-6 rounded-full mx-auto w-fit backdrop-blur-md border border-white/10 shadow-lg">
-               <MousePointer2 size={18} /> <span className="font-semibold">点击开始</span>
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center justify-center space-x-3 text-blue-200 bg-white/10 py-3 px-6 rounded-full mx-auto w-fit backdrop-blur-md border border-white/10 shadow-lg">
+                 <MousePointer2 size={18} /> <span className="font-semibold">点击开始</span>
+              </div>
+              
+              {/* 登录状态和登录按钮 */}
+              {onLogin && (
+                <div className="mt-4">
+                  {isLoggedIn ? (
+                    <div className="flex items-center gap-2 text-sm text-blue-300">
+                      <User className="w-4 h-4" />
+                      <span>已登录: {loginType?.toUpperCase()}</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={onLogin}
+                      className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors bg-black/20 py-2 px-4 rounded-full backdrop-blur-sm"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>登录保存成绩</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
